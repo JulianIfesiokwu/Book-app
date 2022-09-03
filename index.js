@@ -1,7 +1,6 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { Console } = require("console");
 
 const booksPath = path.join(__dirname, "booksDB", "books.json");
 
@@ -13,8 +12,8 @@ function requestHandler(req, res) {
     getAllBooks(req, res);
   } else if (req.url === "/addBook" && req.method === "POST") {
     addBook(req, res);
-  } else if (req.url === "/books" && req.method === "PUT") {
-    getAllBooks(req, res);
+  } else if (req.url === "/updateBook" && req.method === "PUT") {
+    updateBook(req, res);
   } else if (req.url === "/books" && req.method === "DELETE") {
     getAllBooks(req, res);
   }
@@ -63,6 +62,56 @@ function addBook(req, res) {
         }
 
         res.end(JSON.stringify(newBook));
+      });
+    });
+  });
+}
+
+function updateBook(req, res) {
+  const body = [];
+
+  req.on("data", (chunk) => {
+    body.push(chunk);
+  });
+
+  req.on("end", () => {
+    const parsedBook = Buffer.concat(body).toString();
+    const detailsToUpdate = JSON.parse(parsedBook);
+    const bookId = detailsToUpdate.id;
+
+    fs.readFile(booksPath, "utf-8", (err, books) => {
+      if (err) {
+        console.log(err);
+        res.writeHead(400);
+        res.end("An error occured");
+      }
+
+      const booksObj = JSON.parse(books);
+
+      const bookIndex = booksObj.findIndex((book) => book.id === bookId);
+
+      if (bookIndex === -1) {
+        res.writeHead(404);
+        res.end("Book with the specified id not found");
+        return;
+      }
+
+      const updatedBooks = { ...booksObj[bookIndex], ...detailsToUpdate };
+
+      fs.writeFile(booksPath, JSON.stringify(updatedBooks), (err, data) => {
+        if (err) {
+          console.log(err);
+          res.writeHead(500);
+          res.end(
+            JSON.stringify({
+              message:
+                "Internal server error. Could not save book to database.",
+            })
+          );
+        }
+
+        res.writeHead(200);
+        res.end("Update successful");
       });
     });
   });
