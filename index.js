@@ -14,8 +14,8 @@ function requestHandler(req, res) {
     addBook(req, res);
   } else if (req.url === "/updateBook" && req.method === "PUT") {
     updateBook(req, res);
-  } else if (req.url === "/books" && req.method === "DELETE") {
-    getAllBooks(req, res);
+  } else if (req.url === "/deleteBook" && req.method === "DELETE") {
+    deleteBook(req, res);
   }
 }
 
@@ -55,7 +55,7 @@ function addBook(req, res) {
       const allBooks = [...oldBooks, newBook];
 
       fs.writeFile(booksPath, JSON.stringify(allBooks), (err, data) => {
-        if (error) {
+        if (err) {
           console.log(error);
           res.writeHead(400);
           res.end("An error occured");
@@ -79,16 +79,18 @@ function updateBook(req, res) {
     const detailsToUpdate = JSON.parse(parsedBook);
     const bookId = detailsToUpdate.id;
 
-    fs.readFile(booksPath, "utf-8", (err, books) => {
+    fs.readFile(booksPath, "utf-8", (err, data) => {
       if (err) {
         console.log(err);
         res.writeHead(400);
         res.end("An error occured");
       }
 
-      const booksObj = JSON.parse(books);
+      const booksObj = JSON.parse(data);
 
-      const bookIndex = booksObj.findIndex((book) => book.id === bookId);
+      const bookIndex = Array.from(booksObj).findIndex(
+        (book) => book.id === bookId
+      );
 
       if (bookIndex === -1) {
         res.writeHead(404);
@@ -96,9 +98,10 @@ function updateBook(req, res) {
         return;
       }
 
-      const updatedBooks = { ...booksObj[bookIndex], ...detailsToUpdate };
+      const updatedBook = { ...booksObj[bookIndex], ...detailsToUpdate };
+      booksObj[bookIndex] = updatedBook;
 
-      fs.writeFile(booksPath, JSON.stringify(updatedBooks), (err, data) => {
+      fs.writeFile(booksPath, JSON.stringify(booksObj), (err, data) => {
         if (err) {
           console.log(err);
           res.writeHead(500);
@@ -112,6 +115,60 @@ function updateBook(req, res) {
 
         res.writeHead(200);
         res.end("Update successful");
+      });
+    });
+  });
+}
+
+function deleteBook(req, res) {
+  const body = [];
+
+  req.on("data", (chunk) => {
+    body.push(chunk);
+  });
+
+  req.on("end", () => {
+    const parsedBook = Buffer.concat(body).toString();
+    const detailsToDelete = JSON.parse(parsedBook);
+    const bookId = detailsToDelete.id;
+
+    fs.readFile(booksPath, "utf-8", (err, data) => {
+      if (err) {
+        console.log(err);
+        res.writeHead(400);
+        res.end("An error occured");
+      }
+
+      const booksObj = JSON.parse(data);
+
+      const bookIndex = Array.from(booksObj).findIndex(
+        (book) => book.id === bookId
+      );
+
+      if (bookIndex === -1) {
+        res.writeHead(500);
+        res.end(
+          JSON.stringify({ message: "Book with specified id not found" })
+        );
+      }
+
+      // delete book
+      booksObj.splice(bookIndex, 1);
+
+      fs.writeFile(booksPath, JSON.stringify(booksObj), (err, data) => {
+        if (err) {
+          console.log(err);
+          res.writeHead(500);
+          res.end(
+            JSON.stringify({
+              message:
+                "Internal server error. Could not save book to database.",
+            })
+          );
+        }
+
+        res.writeHead(200);
+        res.end("Deletion successful");
       });
     });
   });
